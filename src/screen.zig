@@ -8,18 +8,51 @@ pub var screen_update_mutex: std.Thread.Mutex = undefined;
 pub var scroll: isize = 0;
 pub var total_lines: usize = 0;
 
+const LineInfo = struct {
+    index: usize,
+    length: usize,
+};
+
 var file_name: ?[]const u8 = null;
 var file_contents: ?std.ArrayList(u8) = null;
+var lines: ?std.ArrayList(LineInfo) = null;
 
 pub const CursorPos = @Vector(2, isize);
 
 var cursor_pos: CursorPos = .{ 0, 0 };
+
+pub fn moveToLineStart() void {
+    screen_update_mutex.lock();
+    defer screen_update_mutex.unlock();
+
+    cursor_pos[0] = 0;
+}
+
+pub fn moveToLineEnd() void {
+    //If there is no line at this cursor pos, jump to 0
+    if (cursor_pos[1] > lines.?.items.len or cursor_pos[1] < 0) {
+        return moveCursor(.{ std.math.minInt(isize), 0 });
+    }
+
+    screen_update_mutex.lock();
+    defer screen_update_mutex.unlock();
+
+    cursor_pos[0] = @intCast(lines.?.items[@intCast(cursor_pos[1])].length);
+}
 
 pub fn moveCursor(amount: CursorPos) void {
     screen_update_mutex.lock();
     defer screen_update_mutex.unlock();
 
     cursor_pos += amount;
+    cursor_pos[0] = @max(0, cursor_pos[0]);
+}
+
+pub fn moveCursorExact(pos: CursorPos) void {
+    screen_update_mutex.lock();
+    defer screen_update_mutex.unlock();
+
+    cursor_pos = pos;
     cursor_pos[0] = @max(0, cursor_pos[0]);
 }
 
@@ -34,9 +67,15 @@ pub fn loadFile(file: std.fs.File, filename: []const u8) !void {
     var allocator = std.heap.c_allocator;
 
     if (file_contents) |*file_to_clear| {
-        file_to_clear.clearRetainingCapacity();
+        file_to_clear.clearAndFree();
     } else {
         file_contents = std.ArrayList(u8).init(allocator);
+    }
+
+    if (lines) |*line_infos| {
+        line_infos.clearAndFree();
+    } else {
+        lines = std.ArrayList(LineInfo).init(allocator);
     }
 
     if (file_name) |old_name| {
@@ -52,8 +91,26 @@ pub fn loadFile(file: std.fs.File, filename: []const u8) !void {
     }
 
     total_lines = 0;
-    for (file_contents.?.items) |char| {
-        if (char == '\n') total_lines += 1;
+    var line_start: ?usize = 0;
+    var line_length: usize = 0;
+    for (file_contents.?.items, 0..) |char, i| {
+        if (char == '\n') {
+            try lines.?.append(.{
+                .length = line_length,
+                //If there is no non \n in the line, use the previous char
+                .index = line_start orelse i - 1,
+            });
+
+            line_length = 0;
+            total_lines += 1;
+            line_start = null;
+        } else {
+            if (line_start == null) {
+                line_start = i;
+            }
+
+            line_length += 1;
+        }
     }
 }
 

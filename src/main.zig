@@ -59,6 +59,14 @@ pub fn main() !void {
                 Screen.moveCursor(.{ 1, 0 });
                 try Screen.updateScreen(term);
             },
+            ',' => {
+                Screen.moveToLineStart();
+                try Screen.updateScreen(term);
+            },
+            '.' => {
+                Screen.moveToLineEnd();
+                try Screen.updateScreen(term);
+            },
             else => {},
         }
 
