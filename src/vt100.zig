@@ -42,6 +42,16 @@ pub fn init(file: std.fs.File) !void {
         .INVAL => return error.InvalidSignal,
         else => return error.UnknownSignalHandlerError,
     }
+
+    const old_termios = try std.os.tcgetattr(std.os.STDIN_FILENO);
+    var new_termios = old_termios;
+    new_termios.lflag &= ~std.os.linux.ICANON; // No line buffering
+    new_termios.lflag &= ~std.os.linux.ECHO; // No echoing stuff
+    try std.os.tcsetattr(std.os.STDIN_FILENO, .NOW, new_termios);
+
+    // var char: [1]u8 = undefined;
+    // std.debug.assert(try file.read(&char) == 1);
+    // try std.os.tcsetattr(std.os.STDIN_FILENO, .NOW, old_termios);
 }
 
 fn sigwinchHandler(signal: c_int) callconv(.C) void {

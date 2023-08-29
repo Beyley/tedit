@@ -22,5 +22,34 @@ pub fn main() !void {
 
     try Screen.updateScreen(term);
 
-    _ = try reader.readByte();
+    while (true) {
+        const firstChar = try reader.readByte();
+
+        //If the character is a escape character, we need special handling
+        if (firstChar == std.ascii.control_code.esc) {
+            var b = try reader.readByte();
+            //If b is a `[`, skip it
+            if (b == '[') {
+                b = try reader.readByte();
+            }
+
+            if (b == 'A') {
+                Screen.incrementScroll(-1);
+                try Screen.updateScreen(term);
+            } else if (b == 'B') {
+                Screen.incrementScroll(1);
+                try Screen.updateScreen(term);
+            }
+        }
+
+        switch (firstChar) {
+            'y' => {},
+            'n' => {},
+            'e' => {},
+            'o' => {},
+            else => {},
+        }
+
+        // std.debug.print("{d}\n", .{firstChar});
+    }
 }

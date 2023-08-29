@@ -5,10 +5,29 @@ pub const TerminalSize = extern struct { x: u32, y: u32 };
 
 pub var terminal_size: TerminalSize = undefined;
 pub var screen_update_mutex: std.Thread.Mutex = undefined;
-pub var scroll: usize = 3;
+pub var scroll: isize = 0;
+pub var total_lines: usize = 0;
 
 var file_name: ?[]const u8 = null;
 var file_contents: ?std.ArrayList(u8) = null;
+
+pub const CursorPos = @Vector(2, usize);
+
+var cursor_pos: CursorPos = .{ 0, 0 };
+
+pub fn moveCursor(amount: CursorPos) void {
+    screen_update_mutex.lock();
+    defer screen_update_mutex.unlock();
+
+    cursor_pos += amount;
+}
+
+pub fn incrementScroll(amount: isize) void {
+    screen_update_mutex.lock();
+    defer screen_update_mutex.unlock();
+
+    scroll += amount;
+}
 
 pub fn loadFile(file: std.fs.File, filename: []const u8) !void {
     var allocator = std.heap.c_allocator;
@@ -29,6 +48,11 @@ pub fn loadFile(file: std.fs.File, filename: []const u8) !void {
     var read = try file.read(&buf);
     while (read > 0) : (read = try file.read(&buf)) {
         try file_contents.?.appendSlice(buf[0..read]);
+    }
+
+    total_lines = 0;
+    for (file_contents.?.items) |char| {
+        if (char == '\n') total_lines += 1;
     }
 }
 
@@ -89,7 +113,7 @@ pub fn updateScreen(term: std.fs.File) !void {
         var stream = std.io.fixedBufferStream(file.items);
         var reader = stream.reader();
 
-        var scroll_to_go: usize = scroll;
+        var scroll_to_go: isize = scroll;
         var chars_in_line: usize = 0;
         var lines_written: usize = 0;
         blk: {
@@ -107,7 +131,13 @@ pub fn updateScreen(term: std.fs.File) !void {
                 }
             }
 
-            while (true) {
+            if (scroll < 0) {
+                for (0..@intCast(@min(-scroll, terminal_size.y - 2))) |_| {
+                    try writer.writeByte('\n');
+                }
+            }
+
+            while (-scroll < terminal_size.y - 1) {
                 var b: u8 = reader.readByte() catch |err| {
                     if (err == error.EndOfStream) {
                         break;
@@ -127,7 +157,7 @@ pub fn updateScreen(term: std.fs.File) !void {
                     lines_written += 1;
 
                     //Break out if we are printing the last line that will fit
-                    if (lines_written == terminal_size.y - header_size) {
+                    if (lines_written == terminal_size.y - header_size - (if (scroll < 0) -scroll else 0)) {
                         break :blk;
                     }
                 }
