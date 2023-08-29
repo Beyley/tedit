@@ -43,10 +43,22 @@ pub fn main() !void {
         }
 
         switch (firstChar) {
-            'y' => {},
-            'n' => {},
-            'e' => {},
-            'o' => {},
+            'y' => {
+                Screen.moveCursor(.{ -1, 0 });
+                try Screen.updateScreen(term);
+            },
+            'n' => {
+                Screen.moveCursor(.{ 0, 1 });
+                try Screen.updateScreen(term);
+            },
+            'e' => {
+                Screen.moveCursor(.{ 0, -1 });
+                try Screen.updateScreen(term);
+            },
+            'o' => {
+                Screen.moveCursor(.{ 1, 0 });
+                try Screen.updateScreen(term);
+            },
             else => {},
         }
 

@@ -11,7 +11,7 @@ pub var total_lines: usize = 0;
 var file_name: ?[]const u8 = null;
 var file_contents: ?std.ArrayList(u8) = null;
 
-pub const CursorPos = @Vector(2, usize);
+pub const CursorPos = @Vector(2, isize);
 
 var cursor_pos: CursorPos = .{ 0, 0 };
 
@@ -20,6 +20,7 @@ pub fn moveCursor(amount: CursorPos) void {
     defer screen_update_mutex.unlock();
 
     cursor_pos += amount;
+    cursor_pos[0] = @max(0, cursor_pos[0]);
 }
 
 pub fn incrementScroll(amount: isize) void {
@@ -172,6 +173,15 @@ pub fn updateScreen(term: std.fs.File) !void {
             }
         }
     }
+
+    try vt100.sendEscapeSequence(
+        writer,
+        vt100.Sequences.MoveCursor,
+        .{
+            std.math.clamp(cursor_pos[1] + 1 + header_size - scroll, 1 + header_size, terminal_size.y),
+            std.math.clamp(cursor_pos[0] + 1, 1, terminal_size.x),
+        },
+    );
 
     try buffered_writer.flush();
 }
